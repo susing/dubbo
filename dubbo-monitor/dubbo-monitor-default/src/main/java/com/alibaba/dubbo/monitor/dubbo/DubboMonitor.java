@@ -15,16 +15,6 @@
  */
 package com.alibaba.dubbo.monitor.dubbo;
 
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
-
 import com.alibaba.dubbo.common.URL;
 import com.alibaba.dubbo.common.logger.Logger;
 import com.alibaba.dubbo.common.logger.LoggerFactory;
@@ -32,6 +22,11 @@ import com.alibaba.dubbo.common.utils.NamedThreadFactory;
 import com.alibaba.dubbo.monitor.Monitor;
 import com.alibaba.dubbo.monitor.MonitorService;
 import com.alibaba.dubbo.rpc.Invoker;
+
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * DubboMonitor
@@ -62,6 +57,7 @@ public class DubboMonitor implements Monitor {
         this.monitorInvoker = monitorInvoker;
         this.monitorService = monitorService;
         this.monitorInterval = monitorInvoker.getUrl().getPositiveParameter("interval", 60000);
+        //无用的注释，为了测试git
         // 启动统计信息收集定时器
         sendFuture = scheduledExecutorService.scheduleWithFixedDelay(new Runnable() {
             public void run() {
@@ -73,6 +69,7 @@ public class DubboMonitor implements Monitor {
                 }
             }
         }, monitorInterval, monitorInterval, TimeUnit.MILLISECONDS);
+
     }
     
     public void send() {
