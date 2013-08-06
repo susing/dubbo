@@ -265,7 +265,9 @@ public class ZookeeperRegistry extends FailbackRegistry {
         	int i = path.lastIndexOf('/');
         	String category = i < 0 ? path : path.substring(i + 1);
         	URL empty = consumer.setProtocol(Constants.EMPTY_PROTOCOL).addParameter(Constants.CATEGORY_KEY, category);
-            urls.add(empty);
+            if (urls != null) {
+                urls.add(empty);
+            }
         }
         return urls;
     }
