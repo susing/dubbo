@@ -18,7 +18,6 @@ package com.alibaba.dubbo.common.bytecode;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
-import java.security.ProtectionDomain;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -289,11 +288,7 @@ public final class ClassGenerator
 	    return mPool;
 	}
 
-	public Class<?> toClass(){
-		return toClass(getClass().getClassLoader(), getClass().getProtectionDomain());
-	}
-
-	public Class<?> toClass(ClassLoader loader, ProtectionDomain pd)
+	public Class<?> toClass()
 	{
 		if( mCtc != null )
 			mCtc.detach();
@@ -339,7 +334,7 @@ public final class ClassGenerator
 					}
 				}
 			}
-			return mCtc.toClass(loader, pd);
+			return mCtc.toClass();
 		}
 		catch(RuntimeException e)
 		{

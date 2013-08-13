@@ -46,7 +46,6 @@ import com.alibaba.dubbo.rpc.Protocol;
 import com.alibaba.dubbo.rpc.ProxyFactory;
 import com.alibaba.dubbo.rpc.cluster.ConfiguratorFactory;
 import com.alibaba.dubbo.rpc.service.GenericService;
-import com.alibaba.dubbo.rpc.support.ProtocolUtils;
 
 /**
  * ServiceConfig
@@ -88,7 +87,7 @@ public class ServiceConfig<T> extends AbstractServiceConfig {
 
 	private transient volatile boolean unexported;
     
-    private volatile String generic;
+    private transient volatile boolean generic;
 
     public ServiceConfig() {
     }
@@ -192,9 +191,7 @@ public class ServiceConfig<T> extends AbstractServiceConfig {
         }
         if (ref instanceof GenericService) {
             interfaceClass = GenericService.class;
-            if (StringUtils.isEmpty(generic)) {
-                generic = Boolean.TRUE.toString();
-            }
+            generic = true;
         } else {
             try {
                 interfaceClass = Class.forName(interfaceName, true, Thread.currentThread()
@@ -204,7 +201,7 @@ public class ServiceConfig<T> extends AbstractServiceConfig {
             }
             checkInterfaceAndMethods(interfaceClass, methods);
             checkRef();
-            generic = Boolean.FALSE.toString();
+            generic = false;
         }
         if(local !=null){
             if(local=="true"){
@@ -417,8 +414,8 @@ public class ServiceConfig<T> extends AbstractServiceConfig {
             } // end of methods for
         }
 
-        if (ProtocolUtils.isGeneric(generic)) {
-            map.put("generic", generic);
+        if (generic) {
+            map.put("generic", String.valueOf(true));
             map.put("methods", Constants.ANY_VALUE);
         } else {
             String revision = Version.getVersion(interfaceClass, version);
@@ -613,19 +610,6 @@ public class ServiceConfig<T> extends AbstractServiceConfig {
 
     public ProviderConfig getProvider() {
         return provider;
-    }
-
-    public void setGeneric(String generic) {
-        if (StringUtils.isEmpty(generic)) { return; }
-        if (ProtocolUtils.isGeneric(generic)) {
-            this.generic = generic;
-        } else {
-            throw new IllegalArgumentException("Unsupported generic type " + generic);
-        }
-    }
-
-    public String getGeneric() {
-        return generic;
     }
 
     public void setProvider(ProviderConfig provider) {

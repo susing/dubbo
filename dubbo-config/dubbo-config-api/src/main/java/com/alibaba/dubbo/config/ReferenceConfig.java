@@ -157,16 +157,16 @@ public class ReferenceConfig<T> extends AbstractReferenceConfig {
         ref = null;
     }
 
-    private void init() {
-	    if (initialized) {
-	        return;
-	    }
-	    initialized = true;
-    	if (interfaceName == null || interfaceName.length() == 0) {
-    	    throw new IllegalStateException("<dubbo:reference interface=\"\" /> interface not allow null!");
-    	}
-    	// 获取消费者全局配置
-    	checkDefault();
+    private volatile Map<String, String> initedParameterMap;
+
+    protected synchronized void checkAndLoadConfig() {
+        if(initedParameterMap != null) return;
+
+        if (interfaceName == null || interfaceName.length() == 0) {
+            throw new IllegalStateException("<dubbo:reference interface=\"\" /> interface not allow null!");
+        }
+        // 获取消费者全局配置
+        checkDefault();
         appendProperties(this);
         if (getGeneric() == null && getConsumer() != null) {
             setGeneric(getConsumer().getGeneric());
@@ -175,50 +175,50 @@ public class ReferenceConfig<T> extends AbstractReferenceConfig {
             interfaceClass = GenericService.class;
         } else {
             try {
-				interfaceClass = Class.forName(interfaceName, true, Thread.currentThread()
-				        .getContextClassLoader());
-			} catch (ClassNotFoundException e) {
-				throw new IllegalStateException(e.getMessage(), e);
-			}
+                interfaceClass = Class.forName(interfaceName, true, Thread.currentThread()
+                        .getContextClassLoader());
+            } catch (ClassNotFoundException e) {
+                throw new IllegalStateException(e.getMessage(), e);
+            }
             checkInterfaceAndMethods(interfaceClass, methods);
         }
         String resolve = System.getProperty(interfaceName);
         String resolveFile = null;
         if (resolve == null || resolve.length() == 0) {
-	        resolveFile = System.getProperty("dubbo.resolve.file");
-	        if (resolveFile == null || resolveFile.length() == 0) {
-	        	File userResolveFile = new File(new File(System.getProperty("user.home")), "dubbo-resolve.properties");
-	        	if (userResolveFile.exists()) {
-	        		resolveFile = userResolveFile.getAbsolutePath();
-	        	}
-	        }
-	        if (resolveFile != null && resolveFile.length() > 0) {
-	        	Properties properties = new Properties();
-	        	FileInputStream fis = null;
-	        	try {
-	        	    fis = new FileInputStream(new File(resolveFile));
-					properties.load(fis);
-				} catch (IOException e) {
-					throw new IllegalStateException("Unload " + resolveFile + ", cause: " + e.getMessage(), e);
-				} finally {
-				    try {
+            resolveFile = System.getProperty("dubbo.resolve.file");
+            if (resolveFile == null || resolveFile.length() == 0) {
+                File userResolveFile = new File(new File(System.getProperty("user.home")), "dubbo-resolve.properties");
+                if (userResolveFile.exists()) {
+                    resolveFile = userResolveFile.getAbsolutePath();
+                }
+            }
+            if (resolveFile != null && resolveFile.length() > 0) {
+                Properties properties = new Properties();
+                FileInputStream fis = null;
+                try {
+                    fis = new FileInputStream(new File(resolveFile));
+                    properties.load(fis);
+                } catch (IOException e) {
+                    throw new IllegalStateException("Unload " + resolveFile + ", cause: " + e.getMessage(), e);
+                } finally {
+                    try {
                         if(null != fis) fis.close();
                     } catch (IOException e) {
                         logger.warn(e.getMessage(), e);
                     }
-				}
-	        	resolve = properties.getProperty(interfaceName);
-	        }
+                }
+                resolve = properties.getProperty(interfaceName);
+            }
         }
         if (resolve != null && resolve.length() > 0) {
-        	url = resolve;
-        	if (logger.isWarnEnabled()) {
-        		if (resolveFile != null && resolveFile.length() > 0) {
-        			logger.warn("Using default dubbo resolve file " + resolveFile + " replace " + interfaceName + "" + resolve + " to p2p invoke remote service.");
-        		} else {
-        			logger.warn("Using -D" + interfaceName + "=" + resolve + " to p2p invoke remote service.");
-        		}
-    		}
+            url = resolve;
+            if (logger.isWarnEnabled()) {
+                if (resolveFile != null && resolveFile.length() > 0) {
+                    logger.warn("Using default dubbo resolve file " + resolveFile + " replace " + interfaceName + "" + resolve + " to p2p invoke remote service.");
+                } else {
+                    logger.warn("Using -D" + interfaceName + "=" + resolve + " to p2p invoke remote service.");
+                }
+            }
         }
         if (consumer != null) {
             if (application == null) {
@@ -297,7 +297,18 @@ public class ReferenceConfig<T> extends AbstractReferenceConfig {
         }
         //attributes通过系统context进行存储.
         StaticContext.getSystemContext().putAll(attributes);
-        ref = createProxy(map);
+
+        initedParameterMap = map;
+    }
+
+    private void init() {
+	    if (initialized) {
+	        return;
+	    }
+	    initialized = true;
+
+        checkAndLoadConfig();
+        ref = createProxy();
     }
     
     private static void checkAndConvertImplicitConfig(MethodConfig method, Map<String,String> map, Map<Object,Object> attributes){
@@ -334,8 +345,8 @@ public class ReferenceConfig<T> extends AbstractReferenceConfig {
     }
     
 	@SuppressWarnings({ "unchecked", "rawtypes", "deprecation" })
-	private T createProxy(Map<String, String> map) {
-		URL tmpUrl = new URL("temp", "localhost", 0, map);
+	private T createProxy() {
+		URL tmpUrl = new URL("temp", "localhost", 0, initedParameterMap);
 		final boolean isJvmRefer;
         if (isInjvm() == null) {
             if (url != null && url.length() > 0) { //指定URL的情况下，不做本地引用
@@ -351,7 +362,7 @@ public class ReferenceConfig<T> extends AbstractReferenceConfig {
         }
 		
 		if (isJvmRefer) {
-			URL url = new URL(Constants.LOCAL_PROTOCOL, NetUtils.LOCALHOST, 0, interfaceClass.getName()).addParameters(map);
+			URL url = new URL(Constants.LOCAL_PROTOCOL, NetUtils.LOCALHOST, 0, interfaceClass.getName()).addParameters(initedParameterMap);
 			invoker = refprotocol.refer(interfaceClass, url);
             if (logger.isInfoEnabled()) {
                 logger.info("Using injvm service " + interfaceClass.getName());
@@ -366,9 +377,9 @@ public class ReferenceConfig<T> extends AbstractReferenceConfig {
                             url = url.setPath(interfaceName);
                         }
                         if (Constants.REGISTRY_PROTOCOL.equals(url.getProtocol())) {
-                            urls.add(url.addParameterAndEncoded(Constants.REFER_KEY, StringUtils.toQueryString(map)));
+                            urls.add(url.addParameterAndEncoded(Constants.REFER_KEY, StringUtils.toQueryString(initedParameterMap)));
                         } else {
-                            urls.add(ClusterUtils.mergeUrl(url, map));
+                            urls.add(ClusterUtils.mergeUrl(url, initedParameterMap));
                         }
                     }
                 }
@@ -378,9 +389,9 @@ public class ReferenceConfig<T> extends AbstractReferenceConfig {
                 	for (URL u : us) {
                 	    URL monitorUrl = loadMonitor(u);
                         if (monitorUrl != null) {
-                            map.put(Constants.MONITOR_KEY, URL.encode(monitorUrl.toFullString()));
+                            initedParameterMap.put(Constants.MONITOR_KEY, URL.encode(monitorUrl.toFullString()));
                         }
-                	    urls.add(u.addParameterAndEncoded(Constants.REFER_KEY, StringUtils.toQueryString(map)));
+                	    urls.add(u.addParameterAndEncoded(Constants.REFER_KEY, StringUtils.toQueryString(initedParameterMap)));
                     }
             	}
             	if (urls == null || urls.size() == 0) {
@@ -400,8 +411,8 @@ public class ReferenceConfig<T> extends AbstractReferenceConfig {
                     }
                 }
                 if (registryURL != null) { // 有 注册中心协议的URL
-                    // 对有注册中心的Cluster 只用 AvailableCluster
-                    URL u = registryURL.addParameter(Constants.CLUSTER_KEY, AvailableCluster.NAME); 
+                    // 对有注册中心的Cluster
+                    URL u = registryURL.addParameterIfAbsent(Constants.CLUSTER_KEY, AvailableCluster.NAME);
                     invoker = cluster.join(new StaticDirectory(u, invokers));
                 }  else { // 不是 注册中心的URL
                     invoker = cluster.join(new StaticDirectory(invokers));
